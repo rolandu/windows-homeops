@@ -1,9 +1,7 @@
 # Winget helper functions for bootstrap.ps1
-# - Is-WingetPackageInstalled
-# - Install-Packages-WithWinget
-# - Upgrade-All-WithWinget
 
-function Remove-WingetNoise([string[]]$output) {
+# Remove spinner/progress lines and non-ASCII noise from winget output.
+function Filter-WingetOutput([string[]]$output) {
   # Strip spinner/progress glyphs and non-ASCII noise from winget output.
   if (-not $output) { return @() }
   $filtered = foreach ($line in $output) {
@@ -17,7 +15,8 @@ function Remove-WingetNoise([string[]]$output) {
   if ($filtered) { return ,$filtered } else { return @() }
 }
 
-function Is-WingetPackageInstalled([string]$pkg) {
+# Return $true if winget reports the package present.
+function Test-WingetPackage([string]$pkg) {
   # Return $true if winget reports the package present
   try {
     $output = & winget list --id $pkg 2>$null
@@ -30,14 +29,15 @@ function Is-WingetPackageInstalled([string]$pkg) {
   }
 }
 
-function Install-Packages-WithWinget([string[]]$pkgs) {
+# Install packages via winget (skip already-installed packages).
+function Install-WingetPackages([string[]]$pkgs) {
   # Install packages via winget (skips already-installed packages)
   if (-not $pkgs -or $pkgs.Count -eq 0) { return }
 
   foreach ($p in $pkgs) {
-    if (Is-WingetPackageInstalled $p) {
+    if (Test-WingetPackage $p) {
       Write-Host "$p already installed via winget; skipping."
-      Report-Result 'winget-install' $p 'Skipped' 0 'Already installed'
+      Write-ResultRecord 'winget-install' $p 'Skipped' 0 'Already installed'
       continue
     }
     Write-Host "Ensuring winget package installed: $p"
@@ -45,32 +45,33 @@ function Install-Packages-WithWinget([string[]]$pkgs) {
       # --disable-interactivity reduces spinner/progress noise in logs.
       $wargs = @('install','--id',$p,'-e','--accept-package-agreements','--accept-source-agreements','--silent','--disable-interactivity')
       $output = & winget @wargs 2>&1
-      $cleanOutput = Remove-WingetNoise $output
+      $cleanOutput = Filter-WingetOutput $output
       $rc = $LASTEXITCODE
       $text = ($cleanOutput -join "`n").Trim()
       Write-LogBlock 'winget install' "winget $($wargs -join ' ')" $cleanOutput $rc
       if ($rc -ne 0) {
         # Some winget errors are informative; report failure but include output
         Write-Warning "Failed to install $p via winget (exit $rc)."
-        Report-Result 'winget-install' $p 'Failed' $rc "$text"
+        Write-ResultRecord 'winget-install' $p 'Failed' $rc "$text"
       } else {
-        Report-Result 'winget-install' $p 'Success' $rc "$text"
+        Write-ResultRecord 'winget-install' $p 'Success' $rc "$text"
       }
     } catch {
       Write-Warning "Failed to install $p via winget: $_"
-      Report-Result 'winget-install' $p 'Failed' -1 "Exception: $_"
+      Write-ResultRecord 'winget-install' $p 'Failed' -1 "Exception: $_"
     }
   }
 }
 
-function Upgrade-All-WithWinget {
+# Upgrade all upgradable winget packages (system-wide).
+function Update-WingetPackages {
   # Upgrade all upgradable packages via winget (system-wide)
   Write-Host "Upgrading all available winget packages..."
   try {
     # --disable-interactivity reduces spinner/progress noise in logs.
     $wargs = @('upgrade','--all','-e','--accept-package-agreements','--accept-source-agreements','--silent','--disable-interactivity')
     $output = & winget @wargs 2>&1
-    $cleanOutput = Remove-WingetNoise $output
+    $cleanOutput = Filter-WingetOutput $output
     $rc = $LASTEXITCODE
     $text = ($cleanOutput -join "`n").Trim()
     Write-LogBlock 'winget upgrade --all' "winget $($wargs -join ' ')" $cleanOutput $rc
@@ -79,17 +80,17 @@ function Upgrade-All-WithWinget {
       # If winget reports no upgrades, treat as skipped
       if ($text -match 'No available upgrade found' -or $text -match 'No newer package versions are available' -or $text -match 'No applicable upgrades') {
         Write-Host "No upgrades available via winget." -ForegroundColor Yellow
-        Report-Result 'winget-upgrade' 'all' 'Skipped' $rc 'No upgrades available'
+        Write-ResultRecord 'winget-upgrade' 'all' 'Skipped' $rc 'No upgrades available'
       } else {
         Write-Warning "winget --all upgrade failed (exit $rc)."
-        Report-Result 'winget-upgrade' 'all' 'Failed' $rc "$text"
+        Write-ResultRecord 'winget-upgrade' 'all' 'Failed' $rc "$text"
       }
     } else {
       Write-Host "winget --all upgrade completed." -ForegroundColor Green
-      Report-Result 'winget-upgrade' 'all' 'Success' $rc "$text"
+      Write-ResultRecord 'winget-upgrade' 'all' 'Success' $rc "$text"
     }
   } catch {
     Write-Warning "winget --all upgrade failed: $_"
-    Report-Result 'winget-upgrade' 'all' 'Failed' -1 "Exception: $_"
+    Write-ResultRecord 'winget-upgrade' 'all' 'Failed' -1 "Exception: $_"
   }
 }

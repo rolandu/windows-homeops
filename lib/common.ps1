@@ -1,11 +1,7 @@
 # Common helpers for the bootstrap workflow.
-# - Initialize-Logging: create a timestamped log file under logs/
-# - Write-Log / Write-LogBlock: structured logging helpers
-# - Report-Result: track operation outcomes for final summary
-# - Assert-Admin: ensure the script is running elevated
-# - Enable-TlsForDownloads: enforce modern TLS for downloads
 
-function Initialize-Logging([string]$ScriptRoot, [string]$Prefix = 'bootstrap') {
+# Create a timestamped log file under logs/ next to the script and expose its path.
+function Start-Logging([string]$ScriptRoot, [string]$Prefix = 'bootstrap') {
   if (-not $ScriptRoot) { throw 'ScriptRoot is required to build the log path.' }
 
   $logDir = Join-Path $ScriptRoot 'logs'
@@ -19,12 +15,14 @@ function Initialize-Logging([string]$ScriptRoot, [string]$Prefix = 'bootstrap') 
   return $logPath
 }
 
+# Append a single log line with timestamp.
 function Write-Log([string]$line) {
   if (-not $LogPath) { return }
   $time = (Get-Date).ToString('yyyy-MM-dd HH:mm:ss')
   Add-Content -Path $LogPath -Value ("[$time] $line")
 }
 
+# Log a multi-line command block with title, command, exit code, and output.
 function Write-LogBlock([string]$title, [string]$cmd, [string[]]$output, [int]$exitCode) {
   Write-Log("---- $title ----")
   Write-Log("Command: $cmd")
@@ -36,7 +34,8 @@ function Write-LogBlock([string]$title, [string]$cmd, [string[]]$output, [int]$e
   Write-Log("---- End $title ----")
 }
 
-function Report-Result([string]$operation, [string]$package, [string]$status, [int]$exitCode, [string]$message) {
+# Record an operation result for later summarization (and add log reference on failure).
+function Write-ResultRecord([string]$operation, [string]$package, [string]$status, [int]$exitCode, [string]$message) {
   # Ensure the results array exists
   if (-not (Test-Path variable:Script:OperationResults)) { $Script:OperationResults = @() }
 
@@ -54,12 +53,14 @@ function Report-Result([string]$operation, [string]$package, [string]$status, [i
   }
 }
 
-function Assert-Admin {
+# Throw if the current process is not elevated (admin).
+function Confirm-AdminPrivilege {
   $isAdmin = ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()
     ).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
   if (-not $isAdmin) { throw "Run this script as Administrator." }
 }
 
+# Ensure TLS 1.2/1.3 are enabled for secure downloads.
 function Enable-TlsForDownloads {
   # Ensure TLS 1.2/1.3 are enabled for secure downloads
   try {
@@ -74,6 +75,7 @@ function Enable-TlsForDownloads {
   }
 }
 
+# Print a colored summary of all recorded operations, grouped by status.
 function Write-OperationSummary([array]$OperationResults) {
   $results = @($OperationResults)
   if (-not ($results -and $results.Count -gt 0)) {

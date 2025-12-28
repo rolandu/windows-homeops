@@ -30,11 +30,10 @@ if ($PSScriptRoot) { $ScriptRoot = $PSScriptRoot } else { $ScriptRoot = Split-Pa
 . (Join-Path $ScriptRoot 'lib\scripts.ps1')
 . (Join-Path $ScriptRoot 'lib\security_privacy.ps1')
 
-$LogPath = Initialize-Logging -ScriptRoot $ScriptRoot -Prefix 'bootstrap'
+$LogPath = Start-Logging -ScriptRoot $ScriptRoot -Prefix 'bootstrap'
 # Use a separate transcript file so the structured log stays writable
 $TranscriptPath = "$LogPath.transcript"
 $Script:OperationResults = @()
-$caughtError = $null
 
 # Load package configuration
 if (-not $ConfigPath) { $ConfigPath = Join-Path $ScriptRoot 'settings.psd1' }
@@ -46,6 +45,7 @@ $WingetPackages = $config.WingetPackages
 $transcriptStarted = $false
 try {
   try {
+    # Capture all console output to a transcript alongside the structured log.
     Start-Transcript -Path $TranscriptPath -Append | Out-Null
     $transcriptStarted = $true
   } catch {
@@ -53,25 +53,25 @@ try {
   }
 
   try {
-    Assert-Admin
+    Confirm-AdminPrivilege
     Write-Host ""
 
     # Install/upgrade via choco
     Write-Host "Starting Chocolatey tasks..." -ForegroundColor Cyan
-    Ensure-Chocolatey
+    Initialize-Chocolatey
     Write-Host ""
-    Ensure-ChocoDefaults
+    Set-ChocoDefaults
     Write-Host ""
-    Install-Packages-WithChoco -pkgs $Packages
+    Install-ChocoPackages -pkgs $Packages
     Write-Host ""
-    Upgrade-All-Choco
+    Update-ChocoPackages
     Write-Host ""
 
     # Install/upgrade via winget
     Write-Host "Starting winget tasks..." -ForegroundColor Cyan
-    Install-Packages-WithWinget -pkgs $WingetPackages
+    Install-WingetPackages -pkgs $WingetPackages
     Write-Host ""
-    Upgrade-All-WithWinget
+    Update-WingetPackages
     Write-Host ""
 
     # Security/privacy baseline
@@ -79,9 +79,8 @@ try {
     Invoke-SecurityPrivacyBaseline
     Write-Host ""
   } catch {
-    $caughtError = $_
     Write-Warning "Bootstrap encountered an error: $($_)"
-    Report-Result 'bootstrap' 'fatal' 'Failed' -1 "$($_)"
+    Write-ResultRecord 'bootstrap' 'fatal' 'Failed' -1 "$($_)"
   }
 }
 finally {

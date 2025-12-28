@@ -1,13 +1,13 @@
 # External script helpers
-# - Run-ExternalScript: run a PS1 file and record result
 
-function Run-ExternalScript([string]$FilePath) {
+# Run a PS1 file (NoProfile, bypass policy), log output, and record result.
+function Invoke-ExternalScript([string]$FilePath) {
   if (-not $FilePath) { throw 'FilePath required' }
 
   $name = [System.IO.Path]::GetFileName($FilePath)
   if (-not (Test-Path $FilePath)) {
     Write-Host "$name not found; skipping." -ForegroundColor Yellow
-    Report-Result 'script' $name 'Skipped' 0 'Not found'
+    Write-ResultRecord 'script' $name 'Skipped' 0 'Not found'
     return
   }
 
@@ -21,13 +21,13 @@ function Run-ExternalScript([string]$FilePath) {
 
     if ($rc -eq 0) {
       Write-Host "$name completed successfully." -ForegroundColor Green
-      Report-Result 'script' $name 'Success' $rc ''
+      Write-ResultRecord 'script' $name 'Success' $rc ''
     } else {
       Write-Warning "$name failed (exit $rc)."
-      Report-Result 'script' $name 'Failed' $rc ($text -replace "\s+"," ")
+      Write-ResultRecord 'script' $name 'Failed' $rc ($text -replace "\s+"," ")
     }
   } catch {
     Write-Warning "$name execution failed: $_"
-    Report-Result 'script' $name 'Failed' -1 "Exception: $_"
+    Write-ResultRecord 'script' $name 'Failed' -1 "Exception: $_"
   }
 }
