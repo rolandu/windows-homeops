@@ -16,12 +16,10 @@
         'vlc'               # Media player
         'windirstat'        # Disk usage analyzer
         'winfsp'            # Windows FUSE (filesystem) support
-        'xxxxxxxxxxxxxx'            # Windows FUSE (filesystem) support
     )
 
     # Winget packages to install/ensure (IDs must be exact)
     WingetPackages = @(
         'RustDesk.RustDesk' # Remote desktop tool (self-hostable)
-        'xxxxxxxxxxxxxx'            # Windows FUSE (filesystem) support
     )
 }
