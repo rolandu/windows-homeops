@@ -14,10 +14,11 @@ This represents my default Windows 11 base setup.
 ## Bootstrap.ps1
 
 - Run as administrator
-- Installs applications (mostly using chocolateley)
+- Installs applications (mostly using chocolateley) using package lists from `settings.psd1`
 - Performs upgrades
-- Sets some defaults in Windows
+- Sets some defaults in Windows (including a security/privacy baseline)
 - Idempotent (can run again and again without impact)
+- If script execution is disabled, start a session with `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass -Force` then run `.\bootstrap.ps1`.
 
 ## Optional steps
 

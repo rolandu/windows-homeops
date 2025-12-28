@@ -3,6 +3,20 @@
 # - Install-Packages-WithWinget
 # - Upgrade-All-WithWinget
 
+function Remove-WingetNoise([string[]]$output) {
+  # Strip spinner/progress glyphs and non-ASCII noise from winget output.
+  if (-not $output) { return @() }
+  $filtered = foreach ($line in $output) {
+    if ([string]::IsNullOrWhiteSpace($line)) { continue }
+    # Skip lines with non-ASCII chars (progress bars) or bare spinner frames.
+    $hasNonAscii = $line.ToCharArray() | Where-Object { [int]$_ -gt 127 }
+    if ($hasNonAscii) { continue }
+    if ($line -match '^[\s\|\\/\\-]+$') { continue }
+    $line
+  }
+  if ($filtered) { return ,$filtered } else { return @() }
+}
+
 function Is-WingetPackageInstalled([string]$pkg) {
   # Return $true if winget reports the package present
   try {
@@ -28,11 +42,13 @@ function Install-Packages-WithWinget([string[]]$pkgs) {
     }
     Write-Host "Ensuring winget package installed: $p"
     try {
-      $wargs = @('install','--id',$p,'-e','--accept-package-agreements','--accept-source-agreements','--silent')
+      # --disable-interactivity reduces spinner/progress noise in logs.
+      $wargs = @('install','--id',$p,'-e','--accept-package-agreements','--accept-source-agreements','--silent','--disable-interactivity')
       $output = & winget @wargs 2>&1
+      $cleanOutput = Remove-WingetNoise $output
       $rc = $LASTEXITCODE
-      $text = ($output -join "`n").Trim()
-      Write-LogBlock 'winget install' "winget $($wargs -join ' ')" $output $rc
+      $text = ($cleanOutput -join "`n").Trim()
+      Write-LogBlock 'winget install' "winget $($wargs -join ' ')" $cleanOutput $rc
       if ($rc -ne 0) {
         # Some winget errors are informative; report failure but include output
         Write-Warning "Failed to install $p via winget (exit $rc)."
@@ -51,11 +67,13 @@ function Upgrade-All-WithWinget {
   # Upgrade all upgradable packages via winget (system-wide)
   Write-Host "Upgrading all available winget packages..."
   try {
-    $wargs = @('upgrade','--all','-e','--accept-package-agreements','--accept-source-agreements','--silent')
+    # --disable-interactivity reduces spinner/progress noise in logs.
+    $wargs = @('upgrade','--all','-e','--accept-package-agreements','--accept-source-agreements','--silent','--disable-interactivity')
     $output = & winget @wargs 2>&1
+    $cleanOutput = Remove-WingetNoise $output
     $rc = $LASTEXITCODE
-    $text = ($output -join "`n").Trim()
-    Write-LogBlock 'winget upgrade --all' "winget $($wargs -join ' ')" $output $rc
+    $text = ($cleanOutput -join "`n").Trim()
+    Write-LogBlock 'winget upgrade --all' "winget $($wargs -join ' ')" $cleanOutput $rc
 
     if ($rc -ne 0) {
       # If winget reports no upgrades, treat as skipped

@@ -1,12 +1,34 @@
 # Chocolatey helper functions for bootstrap.ps1
+# - Ensure-Chocolatey: installs Chocolatey if missing
 # - Ensure-ChocoDefaults: sets safe defaults
-# - Install-Packages-WithChoco: installs a list of packages via choco (skips installed)
-# - Upgrade-All-Choco: upgrades all chocolatey packages
+# - Is-ChocoPackageInstalled / Install-Packages-WithChoco / Upgrade-All-Choco
+
+function Ensure-Chocolatey {
+  $chocoExe = Join-Path $env:ProgramData "chocolatey\bin\choco.exe"
+  if (Test-Path $chocoExe) {
+    Write-Host "Chocolatey already installed."
+    $env:Path = "$env:Path;$($env:ProgramData)\chocolatey\bin"
+    return
+  }
+
+  Write-Host "Installing Chocolatey..."
+  Enable-TlsForDownloads
+  Set-ExecutionPolicy Bypass -Scope Process -Force | Out-Null
+
+  $installScriptUrl = "https://community.chocolatey.org/install.ps1"
+  $scriptText = (New-Object Net.WebClient).DownloadString($installScriptUrl)
+  Invoke-Expression $scriptText
+
+  if (-not (Test-Path $chocoExe)) {
+    throw "Chocolatey install ran, but choco.exe not found at: $chocoExe"
+  }
+
+  $env:Path = "$env:Path;$($env:ProgramData)\chocolatey\bin"
+  Write-Host "Chocolatey installed."
+}
 
 function Ensure-ChocoDefaults {
-  # -------------------------------------------------------------------------
   # Chocolatey defaults (features/config) to make scripting smoother
-  # -------------------------------------------------------------------------
   try {
     # Use direct invocation and capture output to avoid noisy Chocolatey banner lines.
     $chocoArgs = @('feature','enable','-n','allowGlobalConfirmation')
@@ -66,20 +88,23 @@ function Install-Packages-WithChoco([string[]]$pkgs) {
   if (-not $pkgs -or $pkgs.Count -eq 0) { return }
 
   foreach ($p in $pkgs) {
-    if (Is-ChocoPackageInstalled $p) {
-      Write-Host "$p already installed via Chocolatey; skipping."
-      Report-Result 'choco-install' $p 'Skipped' 0 'Already installed'
-      continue
-    }
-    Write-Host "Ensuring package installed: $p"
     try {
-      $args = @('install',$p,'-y','--no-progress')
-      $proc = Start-Process -FilePath 'choco' -ArgumentList $args -Wait -NoNewWindow -PassThru
-      if ($proc.ExitCode -ne 0) {
-        Write-Warning "Failed to install $p via Chocolatey (exit $($proc.ExitCode))."
-        Report-Result 'choco-install' $p 'Failed' $proc.ExitCode "install returned non-zero"
+      if (Is-ChocoPackageInstalled $p) {
+        Write-Host "$p already installed via Chocolatey; skipping."
+        Report-Result 'choco-install' $p 'Skipped' 0 'Already installed'
+        continue
+      }
+      Write-Host "Ensuring package installed: $p"
+
+      $args = @('install',$p,'-y','--no-progress','--limit-output')
+      $output = & choco @args 2>&1
+      $rc = $LASTEXITCODE
+      Write-LogBlock "choco install $p" "choco $($args -join ' ')" $output $rc
+      if ($rc -ne 0) {
+        Write-Warning "Failed to install $p via Chocolatey (exit $rc)."
+        Report-Result 'choco-install' $p 'Failed' $rc "install returned non-zero"
       } else {
-        Report-Result 'choco-install' $p 'Success' $proc.ExitCode ""
+        Report-Result 'choco-install' $p 'Success' $rc ""
       }
     } catch {
       Write-Warning "Failed to install $p via Chocolatey: $_"
