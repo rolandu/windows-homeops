@@ -19,7 +19,8 @@ function Filter-WingetOutput([string[]]$output) {
 function Test-WingetPackage([string]$pkg) {
   # Return $true if winget reports the package present
   try {
-    $output = & winget list --id $pkg 2>$null
+    $wargs = @('list','--id',$pkg,'-e','--accept-source-agreements','--disable-interactivity')
+    $output = & winget @wargs 2>$null
     if ($LASTEXITCODE -ne 0) { return $false }
     $text = ($output -join "`n").Trim()
     if ([string]::IsNullOrWhiteSpace($text)) { return $false }
