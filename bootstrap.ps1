@@ -41,6 +41,8 @@ if (-not (Test-Path $ConfigPath)) { throw "Config file not found: $ConfigPath" }
 $config = Import-PowerShellDataFile -Path $ConfigPath
 $Packages = $config.Packages
 $WingetPackages = $config.WingetPackages
+$StartupDisableNames = $config.StartupDisableNames
+if (-not $StartupDisableNames) { $StartupDisableNames = @() }
 
 $transcriptStarted = $false
 try {
@@ -77,6 +79,8 @@ try {
     # Security/privacy baseline
     Write-Host "Applying security/privacy baseline..." -ForegroundColor Cyan
     Invoke-SecurityPrivacyBaseline
+    Write-Host ""
+    Disable-StartupItems -ApproxNames $StartupDisableNames
     Write-Host ""
   } catch {
     Write-Warning "Bootstrap encountered an error: $($_)"

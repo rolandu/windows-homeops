@@ -22,4 +22,9 @@
     WingetPackages = @(
         'RustDesk.RustDesk' # Remote desktop tool (self-hostable)
     )
+
+    # Startup items to disable (approximate name matching against Startup apps)
+    StartupDisableNames = @(
+        'RustDesk'
+    )
 }
